@@ -10,12 +10,10 @@ const Profile = (props) => {
     }, []);
     return (
         <div>
-        <div>
-            <h1>Test List</h1>
-        </div>
         <div className="App"
         >
             
+            <h1>Test List</h1>
             <table sx={{ minWidth: 1000 }} size="small"
             >
                 <tr >

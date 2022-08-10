@@ -1,59 +1,133 @@
 var express = require("express");
 var router = express.Router();
+var bcrypt = require("bcrypt");
+var jwt = require("jsonwebtoken");
 
-// Load User model
-const User = require("../models/Users");
+
+// Load models
+const Study = require("../models/Study");
+const Patient = require("../models/Patient");
+
+var Fetchuser = require("../middleware/Fetchuser");
+
 
 // GET request 
-// Getting all the users
+// Getting all the Studies
 router.get("/", function(req, res) {
-    User.find(function(err, users) {
+    Study.find(function(err, Studies) {
 		if (err) {
 			console.log(err);
 		} else {
-			res.json(users);
+			res.json(Studies);
 		}
 	})
 });
 
-// NOTE: Below functions are just sample to show you API endpoints working, for the assignment you may need to edit them
-
+// Getting all the Patients
+router.get("/", function(req, res) {
+    Patient.find(function(err, Patients) {
+		if (err) {
+			console.log(err);
+		} else {
+			res.json(Patients);
+		}
+	})
+});
 // POST request 
-// Add a user to db
-router.post("/register", (req, res) => {
-    const newUser = new User({
-        name: req.body.name,
-        email: req.body.email,
-        date: req.body.date
-    });
+// API endpoint for registration
+router.post("/register", async (req, res) => {
 
-    newUser.save()
-        .then(user => {
-            res.status(200).json(user);
-        })
-        .catch(err => {
-            res.status(400).send(err);
-        });
+    try {
+
+        const username = req.body.username;
+
+        let patient = await Patient.findOne({ username });
+        let study = await Study.findOne({ username });
+
+        if (patient || study) {
+            return res.send("Username already taken!");
+        }
+
+        const salt = await bcrypt.genSalt(10);
+        const hashed_password = await bcrypt.hash(req.body.password, salt);
+
+        if (req.body.type === "patient") {
+
+            newPatient = await Patient.create({
+                type: req.body.type,
+                username: req.body.username,
+                password: hashed_password,
+                Patient_id: req.body.Patient_id
+            });
+        }
+
+        if (req.body.type === "study") {
+
+            newStudy = await Study.create({
+                type: req.body.type,
+                name: req.body.name,
+                username: req.body.username,
+                password: hashed_password,
+                Study_id: req.body.Study_id,
+            });
+        }
+
+        return res.send("Registration Successful!");
+
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).send("Internal error occurred!");
+    }
 });
 
-// POST request 
-// Login
-router.post("/login", (req, res) => {
-	const email = req.body.email;
-	// Find user by email
-	User.findOne({ email }).then(user => {
-		// Check if user email exists
-		if (!user) {
-			return res.status(404).json({
-				error: "Email not found",
-			});
+// API endpoint for login
+router.post("/login", async (req, res) => {
+
+    try {
+
+        const username = await req.body.username;
+        const password = await req.body.password;
+
+        let patient = await Patient.findOne({ username });
+        let study = await Study.findOne({ username });
+
+        if (!patient && !study) {
+            return res.status(400).json({ error: "Please enter valid credentials!" });
         }
-        else{
-            res.send("Email Found");
-            return user;
+
+        if (patient) {
+            const compare_password = await bcrypt.compare(password, patient.password);
+            if (!compare_password) {
+                return res.status(400).json({ error: "Please enter valid credentials!" });
+            }
+            const data = {
+                user_id: patient._id,
+                type: patient.type
+            }
+            const authToken = jwt.sign(data, process.env.JWT_SECRET);
+            res.json({ authToken });
         }
-	});
+        if (study) {
+            console.log(study)
+            const compare_password = await bcrypt.compare(password, study.password);
+            if (!compare_password) {
+                return res.status(400).json({ error: "Please enter valid credentials!" });
+            }
+            const data = {
+                user_id: study._id,
+                type: study.type
+            }
+            const authToken = jwt.sign(data, process.env.JWT_SECRET);
+            res.json({ authToken });
+        }
+
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).send("Internal error occurred!");
+    }
 });
+
+
 
 module.exports = router;
 
